@@ -1,7 +1,7 @@
 # TASKS
 
 進捗はチェックボックスで管理する（`[ ]` 未着手 / `[x]` 完了）。
-詳細な設計案は `docs/tasks-and-initial-design.md` を参照。
+詳細な設計案は `PROPOSAL.md` を参照。
 
 ## 準備
 - [ ] T0 プロジェクト雛形（Vite + React + TS strict + Vitest）
