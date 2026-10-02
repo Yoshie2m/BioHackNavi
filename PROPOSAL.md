@@ -12,6 +12,29 @@
 - 栄養素：ビタミン D、カルシウム、ビタミン K（数栄養素）
 - 目的：縦に一通り（domain → application → UI）通し、モデルの妥当性を検証する
 
+## 0.1 実行方針：フロントエンドのみで動作（バックエンドなし）
+
+当面は静的ホスティング（例：GitHub Pages）だけで動くシステムとして実装する。
+DDD の層構成は変えず、**infrastructure の実装だけを差し替え可能にしておく**ことで、将来 API 化できるようにする。
+
+| 項目 | 方針 |
+| :-- | :-- |
+| 知識データ（関連・エビデンス・カタログ） | リポジトリ内の静的 JSON（`public/data/*.json`）として管理し、起動時に取得する |
+| リポジトリ実装 | application の IF に対し `StaticJsonXxxRepository` を実装する。テスト用のインメモリ実装と並存 |
+| データ検証 | 読み込み時に Zod で検証し、DTO → ドメインモデルへ変換（ACL）。加えてビルド前にデータ検証スクリプトを CI で実行 |
+| サーバー状態 | TanStack Query をそのまま利用（静的 JSON の取得・キャッシュ） |
+| ルーティング | 静的ホスティング対応（`createHashRouter`、または SPA フォールバック設定） |
+| 外部標準・PubMed 等の API 連携 | 当面なし。ICD / MeSH コードは JSON に事前に埋め込む |
+| 利用者プロファイル（摂取量など） | **ブラウザ内メモリのみ**（リロードで消える）。永続化・送信はしない（下記の注意参照） |
+| 認証・ユーザー管理 | なし |
+| 将来のバックエンド化 | repository 実装を HTTP 版に差し替えるだけで済む構成を維持する |
+
+### 注意：`CLAUDE.md` 第9章との関係
+
+第9章は「保存はサーバー側を原則、localStorage 等への平文保存は禁止」としている。
+サーバーがない間は**利用者の健康情報を一切永続化しない**ことでこの制約を満たす。
+ファイルへのエクスポート／インポートや localStorage 利用を入れる場合は、第9章の見直しと合意が必要（未決事項 #6）。
+
 ## 1. タスク一覧
 
 | ID | タスク | 対象コンテキスト | 依存 | 完了条件 |
@@ -30,7 +53,10 @@
 | T11 | 画面：用語集 | shared | T0 | 第2章の表と一致 |
 | T12 | E2E（栄養素 → 関連 → エビデンス） | tests | T10 | Playwright が通る |
 | T13 | profile / analysis（摂取量の突き合わせ） | profile, analysis | T5, T10 | 情報提供に限定された出力 |
-| T14 | infrastructure（API / Zod / マッパー、外部標準 ACL） | 各コンテキスト | T6 | MSW でのテストが通る |
+| T14 | infrastructure（静的 JSON ローダー / Zod / マッパー）とデータ検証スクリプト | 各コンテキスト | T6 | 不正な JSON を検出するテストが通る |
+| T16 | 静的ホスティング対応（ルーティング、base パス、デプロイ設定） | app | T10 | 静的ホスティング上で全画面が表示される |
+| T17 | 初期データ作成（骨粗しょう症 × 栄養素の JSON、評価時点つき） | catalog, association, evidence | T14 | ドメインエキスパート確認済み |
+| T18 | （将来）HTTP 版リポジトリへの差し替え | 各コンテキスト | T14 | 現時点では対象外 |
 | T15 | ドメインエキスパートレビューと用語表の更新 | 全体 | 随時 | 第2章が最新 |
 
 推奨順序：T0 → T1 → T2 → T3/T7 → T4 → T5 → T6 → T8 → T9 → T10/T11 → T12 → T13 → T14（T15 は随時）
@@ -120,13 +146,27 @@ export const err = <E>(error: E): Result<never, E> => ({ ok: false, error });
 
 - `NutrientIntake`（量・単位・期間・申告精度）、単位変換は値オブジェクト内
 - analysis は `ApplicabilityChecker` を用いて突き合わせ、結果は「情報提供」表現に限定
-- 要配慮情報は localStorage に保存しない。ログ・アナリティクスに送らない（第9章）
+- フロントエンドのみのため、プロファイル・摂取量は**メモリ上のみ**で保持し、永続化しない。localStorage に保存しない。ログ・アナリティクスに送らない（第9章）
+- 状態は `useReducer` またはコンテキスト内の Provider で保持（グローバルストアにドメイン状態を置かない）
 
-### T14：infrastructure
+### T14：infrastructure（静的 JSON）
 
-- API レスポンスは Zod で検証し DTO として扱い、`mappers` でドメインモデルに変換
-- 外部標準（ICD / MeSH / 食品成分表 / PubMed）のコードはこの層で内部 ID に変換
-- テストは Vitest + MSW
+- `public/data/` に `nutrients.json`、`conditions.json`、`associations.json`、`evidence.json` を置く（コンテキストごとに分割）
+- 読み込んだ JSON は Zod で検証し DTO として扱い、`mappers` でドメインモデルに変換
+- JSON 内の ICD / MeSH コードはこの層で内部 ID に変換
+- `scripts/validate-data.ts`：Zod スキーマで全 JSON を検証し、参照切れ（存在しない EvidenceRef など）も検出。CI で実行
+- テストは Vitest（JSON フィクスチャ）。HTTP 通信がないため MSW は当面不要
+
+### T16：静的ホスティング対応
+
+- `createHashRouter` を採用（またはホスティング側の SPA フォールバック設定）
+- Vite の `base` を設定可能にする（GitHub Pages のサブパス対応）
+- デプロイは GitHub Actions で `build` → Pages へ公開（方式は未決）
+
+### T17：初期データ
+
+- 各レコードに `assessedAt` と出典（EvidenceRef）を必須とする
+- 評価値（EvidenceGrade、CausalPlausibility など）は専門家確認までは `TODO(要確認)` のダミー値と明示し、画面にも「暫定データ」を表示する
 
 ## 3. 未決事項（要確認）
 
@@ -137,4 +177,5 @@ export const err = <E>(error: E): Result<never, E> => ({ ok: false, error });
 | 3 | 適用条件の具体的な閾値（年齢・性別・用量範囲） | 管理栄養士・医師 |
 | 4 | 初期データの出典（骨粗しょう症 × ビタミン D 等）と評価時点 | 研究者 |
 | 5 | SaMD 該当性のレビュー方針 | 法務・専門家 |
-| 6 | バックエンド有無（保存はサーバー側が原則。API 仕様の前提） | 開発チーム |
+| 6 | サーバーなしでの利用者データの扱い（現案：永続化しない。エクスポート／インポートを許すか、第9章をどう読み替えるか） | 開発チーム・法務 |
+| 7 | 静的ホスティング先とデプロイ方式（GitHub Pages など） | 開発チーム |
