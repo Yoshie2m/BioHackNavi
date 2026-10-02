@@ -30,3 +30,17 @@
 - [ ] T16 静的ホスティング対応（HashRouter、base パス、デプロイ設定）
 - [ ] T17 初期データ作成（骨粗しょう症 × 栄養素の JSON）
 - [ ] T18 （将来）HTTP 版リポジトリへの差し替え ※現時点では対象外
+
+## 設計ドキュメント（docs/ddd/）
+構成と運用ルールは `PROPOSAL.md` の 0.2 節を参照。
+- [ ] D0 README.md（目次・読む順番・更新ルール）と 00-domain-vision.md
+- [ ] D1 strategic/ubiquitous-language.md（※正の置き場を先に決める）
+- [ ] D2 strategic/subdomains.md
+- [ ] D3 strategic/context-map.md
+- [ ] D4 strategic/event-storming/2026-10-vitamin-d.md
+- [ ] D5 tactical/association.md
+- [ ] D6 tactical/evidence.md・catalog.md
+- [ ] D7 tactical/profile.md・analysis.md
+- [ ] D8 policies/invariants.md（不変条件 ⇔ テスト名）
+- [ ] D9 policies/regulatory-and-privacy.md
+- [ ] D10 adr/0001（関連と因果の分離）・0002（Result 型）・0003（フロントエンドのみ・静的 JSON）

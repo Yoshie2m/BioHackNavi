@@ -35,6 +35,63 @@ DDD の層構成は変えず、**infrastructure の実装だけを差し替え�
 サーバーがない間は**利用者の健康情報を一切永続化しない**ことでこの制約を満たす。
 ファイルへのエクスポート／インポートや localStorage 利用を入れる場合は、第9章の見直しと合意が必要（未決事項 #6）。
 
+## 0.2 設計ドキュメントの構成（`docs/ddd/` に一元管理）
+
+DDD の成果物を種類ごとにフォルダ分けし、`docs/ddd/` に集約する。コードの構成（`src/`）とは独立して管理する。
+
+```
+docs/
+└─ ddd/
+   ├─ README.md                      # 設計書の目次、読む順番、更新ルール
+   ├─ 00-domain-vision.md            # ドメインビジョン、提供価値、スコープ外
+   ├─ strategic/
+   │   ├─ ubiquitous-language.md     # 用語集（全コンテキスト共通）
+   │   ├─ subdomains.md              # コア／支援／汎用の分類と理由
+   │   ├─ context-map.md             # コンテキスト間の関係（ACL、公開API等）
+   │   └─ event-storming/
+   │       └─ 2026-10-vitamin-d.md   # セッションごとの記録
+   ├─ tactical/
+   │   ├─ association.md             # 集約、値オブジェクト、不変条件、サービス
+   │   ├─ evidence.md
+   │   ├─ catalog.md
+   │   ├─ profile.md
+   │   └─ analysis.md
+   ├─ policies/
+   │   ├─ invariants.md              # 不変条件の一覧とテストへの対応表
+   │   └─ regulatory-and-privacy.md  # 医療行為との境界、要配慮個人情報
+   └─ adr/
+       ├─ 0001-separate-association-and-causality.md
+       └─ 0002-use-result-type.md    # 設計判断の記録（1判断1ファイル）
+```
+
+### 既存資料との対応（どこから何を移すか）
+
+| 新規ドキュメント | 元になる記述 | 備考 |
+| :-- | :-- | :-- |
+| `00-domain-vision.md` | `CLAUDE.md` 第1章 | 提供価値・提供しないもの（スコープ外） |
+| `strategic/ubiquitous-language.md` | `CLAUDE.md` 第2章 | **正（Single Source of Truth）をどちらに置くか要決定**（未決事項 #8） |
+| `strategic/subdomains.md` | `CLAUDE.md` 第3章の「位置づけ」列 | コア／支援／汎用の分類理由を追記 |
+| `strategic/context-map.md` | `CLAUDE.md` 第3章（コンテキスト間ルール）・第5章 | 関係の種類（ACL、公開 API）を図示 |
+| `strategic/event-storming/…` | 新規 | 初回は「ビタミン D × 骨粗しょう症」 |
+| `tactical/association.md` | `CLAUDE.md` 第6.1章、本書 T3〜T5 | 集約・値オブジェクト・サービス |
+| `tactical/evidence.md` | `CLAUDE.md` 第6.2章、本書 T7 | |
+| `tactical/catalog.md` | `CLAUDE.md` 第3章、本書 T8 | 静的 JSON の構造（0.1 節）を含む |
+| `tactical/profile.md` / `analysis.md` | `CLAUDE.md` 第6.3章、本書 T13 | メモリ上のみ保持（0.1 節） |
+| `policies/invariants.md` | `CLAUDE.md` 第6.4章、本書 T4 の対応表 | 不変条件 ⇔ テスト名の対応表。実装済みかを列で管理 |
+| `policies/regulatory-and-privacy.md` | `CLAUDE.md` 第9章 | フロントエンドのみ時の読み替えを記載 |
+| `adr/0001-separate-association-and-causality.md` | `CLAUDE.md` 第2章「関連と因果を混同しない」 | 判断理由・代替案・影響 |
+| `adr/0002-use-result-type.md` | `CLAUDE.md` 第7.1章 | 例外ではなく `Result` を使う |
+| `adr/0003-frontend-only-static-json.md`（追加提案） | 本書 0.1 節 | 当面はバックエンドなし |
+
+### 運用ルール（`docs/ddd/README.md` に記載する）
+
+- 読む順番：`00` → `strategic/` → `tactical/` → `policies/` → `adr/`
+- 1 つの設計判断につき ADR を 1 ファイル作る（番号は連番、状態は `提案 / 採用 / 廃止`）。採用後は書き換えず、変更時は新しい ADR で置き換える
+- 用語・モデルを変更したら、`ubiquitous-language.md` と該当する `tactical/*.md` を**同じ変更で**更新する（`CLAUDE.md` 第11章 6 の延長）
+- 不変条件を追加したら `policies/invariants.md` に追記し、対応するテスト名を書く
+- 医学的な判断で未確定のものは `TODO(要確認)` を残し、確認先を明記する
+- `PROPOSAL.md` は初期案の記録として残し、内容が `docs/ddd/` に移った項目には移行先へのリンクを追記する
+
 ## 1. タスク一覧
 
 | ID | タスク | 対象コンテキスト | 依存 | 完了条件 |
@@ -60,6 +117,26 @@ DDD の層構成は変えず、**infrastructure の実装だけを差し替え�
 | T15 | ドメインエキスパートレビューと用語表の更新 | 全体 | 随時 | 第2章が最新 |
 
 推奨順序：T0 → T1 → T2 → T3/T7 → T4 → T5 → T6 → T8 → T9 → T10/T11 → T12 → T13 → T14（T15 は随時）
+
+### 設計ドキュメント作成タスク（`docs/ddd/`）
+
+実装タスク（T 系）と並行して進める。D 系の完了は、対応する T 系の着手前または完了時を目安にする。
+
+| ID | タスク | 成果物 | 依存 | 完了条件 |
+| :-- | :-- | :-- | :-- | :-- |
+| D0 | 目次と更新ルール、ドメインビジョン | `README.md`、`00-domain-vision.md` | なし | 読む順番と更新ルールが書かれている |
+| D1 | ユビキタス言語の移行 | `strategic/ubiquitous-language.md` | 未決 #8 | 正の置き場が決まり、重複がない |
+| D2 | サブドメイン分類 | `strategic/subdomains.md` | D0 | コア／支援／汎用の理由が書かれている |
+| D3 | コンテキストマップ | `strategic/context-map.md` | D2 | 全コンテキスト間の関係と ACL が図示されている |
+| D4 | イベントストーミング（初回） | `strategic/event-storming/2026-10-vitamin-d.md` | D1 | ドメインエキスパートのレビューを経ている |
+| D5 | association の戦術設計 | `tactical/association.md` | D1, D3 | 集約・値オブジェクト・サービスが T3〜T5 と一致 |
+| D6 | evidence / catalog の戦術設計 | `tactical/evidence.md`、`catalog.md` | D5 | T7・T8 と一致 |
+| D7 | profile / analysis の戦術設計 | `tactical/profile.md`、`analysis.md` | D5 | T13 と一致。メモリ上のみ保持を明記 |
+| D8 | 不変条件とテストの対応表 | `policies/invariants.md` | D5 | 第6.4章の全項目にテスト名がある |
+| D9 | 規制・プライバシー方針 | `policies/regulatory-and-privacy.md` | D0 | フロントエンドのみ時の読み替えを含む |
+| D10 | ADR（0001〜0003） | `adr/0001〜0003-*.md` | D0 | 判断理由・代替案・影響が書かれている |
+
+推奨順序：D0 → D1 → D2/D3 → D10 → D4 → D5 → D8 → D6/D7 → D9
 
 ## 2. 各タスクの一次設計案
 
@@ -179,3 +256,5 @@ export const err = <E>(error: E): Result<never, E> => ({ ok: false, error });
 | 5 | SaMD 該当性のレビュー方針 | 法務・専門家 |
 | 6 | サーバーなしでの利用者データの扱い（現案：永続化しない。エクスポート／インポートを許すか、第9章をどう読み替えるか） | 開発チーム・法務 |
 | 7 | 静的ホスティング先とデプロイ方式（GitHub Pages など） | 開発チーム |
+| 8 | ユビキタス言語の正をどこに置くか。案：`docs/ddd/strategic/ubiquitous-language.md` を正とし、`CLAUDE.md` 第2章はそこへのリンクと要約にする（`CLAUDE.md` の改訂が必要）。`/glossary` 画面のデータ元にもなる | 開発チーム |
+| 9 | `docs/ddd/` の言語（日本語で統一する想定でよいか）と、図の記法（Mermaid など） | 開発チーム |
